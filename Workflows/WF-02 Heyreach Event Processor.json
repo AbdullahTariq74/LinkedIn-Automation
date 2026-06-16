@@ -1,0 +1,688 @@
+{
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "heyreach-event",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        -2384,
+        368
+      ],
+      "id": "a01b927f-aaf7-4ee6-a450-29442a8ebbbb",
+      "name": "Webhook",
+      "webhookId": "e9f412b2-0ee5-4acd-9f5a-fd9d57a3d024"
+    },
+    {
+      "parameters": {
+        "jsCode": "// ── Fields to confirm against Heyreach's official webhook docs ───────────────\n//\n//  event_type      : top-level key name (\"event\", \"event_type\", \"type\", \"action\"?)\n//  lead identifier : \"leadId\", \"lead_id\", \"contactId\", \"id\"?\n//  linkedin URL    : \"linkedinUrl\", \"linkedin_url\", \"profileUrl\", \"lead.linkedinUrl\"?\n//  reply text      : \"replyText\", \"reply_text\", \"message\", \"messageText\", \"body\"?\n//  nested lead obj : does a \"lead\" or \"contact\" sub-object exist?\n//  campaign info   : \"campaignId\" present? useful to add later\n//\n// ─────────────────────────────────────────────────────────────────────────────\n\nconst EVENT_MAP = {\n  connection_request_sent: 'connection_sent',\n  connection_accepted:     'connection_request_accepted',\n  message_sent:            'message_sent',\n  reply_received:          'every_message_reply_received',\n  // add more mappings as you discover them in live payloads\n};\n\nconst body = $json.body ?? $json ?? {};\n\n// ── Event type ────────────────────────────────────────────────────────────────\nconst rawEvent =\n  body.event_type ??\n  body.event      ??\n  body.type       ??\n  body.action     ??\n  null;\n\nconst event_type = EVENT_MAP[rawEvent] ?? rawEvent ?? null;\n\n// ── Lead / contact sub-object (may or may not be nested) ─────────────────────\nconst lead = body.lead ?? body.contact ?? body.prospect ?? {};\n\n// ── Lead ID ───────────────────────────────────────────────────────────────────\nconst heyreach_lead_id =\n  body.leadId    ??\n  body.lead_id   ??\n  body.contactId ??\n  body.id        ??\n  lead.id        ??\n  lead.leadId    ??\n  null;\n\n// ── LinkedIn profile URL (raw) ────────────────────────────────────────────────\nconst raw_linkedin_url =\n  body.linkedinUrl   ??\n  body.linkedin_url  ??\n  body.profileUrl    ??\n  body.profile_url   ??\n  lead.linkedinUrl   ??\n  lead.profile_url   ??\n  lead.linkedin_url  ??\n  lead.profileUrl    ??\n  null;\n\n// ── Normalize LinkedIn URL ────────────────────────────────────────────────────\n// Matches the normalization in Supabase so lookups always work\nconst linkedin_url = raw_linkedin_url\n  ? raw_linkedin_url\n      .trim()\n      .toLowerCase()\n      .replace(/^http:/, 'https:')\n      .replace(/\\/+$/, '')\n      .replace(/\\?.*/, '')\n  : null;\n\n// ── Reply text (only present on reply_received events) ───────────────────────\nconst reply_text =\n  body.replyText    ??\n  body.reply_text   ??\n  body.messageText  ??\n  body.message_text ??\n  body.message      ??\n  body.body         ??\n  lead.replyText    ??\n  body.recent_messages?.[0]?.message ??\n  body.connection_message ??\n  null;\n\n// ── Raw payload (for event log) ───────────────────────────────────────────────\nconst raw_payload = JSON.stringify(body);\n\nreturn [{\n  json: {\n    event_type,\n    heyreach_lead_id: heyreach_lead_id !== null ? String(heyreach_lead_id) : null,\n    reply_text:       event_type === 'every_message_reply_received' ? (reply_text ?? null) : null,\n    linkedin_url,\n    raw_payload,\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -2160,
+        368
+      ],
+      "id": "919667e7-fb60-4fd0-b53a-d16d9d7702ff",
+      "name": "Code in JavaScript"
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "tableId": "leads",
+        "limit": 1,
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "linkedin_url",
+              "condition": "eq",
+              "keyValue": "={{ $json.linkedin_url }}"
+            },
+            {
+              "keyName": "heyreach_id",
+              "condition": "eq",
+              "keyValue": "={{ $json.heyreach_lead_id }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        -1936,
+        432
+      ],
+      "id": "0d8de424-6c75-4f0b-94e6-9fb96774a410",
+      "name": "Lookup Lead",
+      "alwaysOutputData": true,
+      "credentials": {
+        "supabaseApi": {
+          "id": "qfbu43o1tlmbP0WQ",
+          "name": "Supabase account-Michael"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.event_type }}",
+                    "rightValue": "connection_sent",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "d80e4f22-f2cf-4c00-909d-e24886bf666c"
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "ffd7cdbb-f8b5-49a0-8fec-5251c0be1984",
+                    "leftValue": "={{ $json.event_type }}",
+                    "rightValue": "connection_request_accepted",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "5a44dfbc-b527-41a3-95d2-ebadaa01ac89",
+                    "leftValue": "={{ $json.event_type }}",
+                    "rightValue": "message_sent",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "871b5b28-8f0a-4c92-b098-6fad5c5c57d7",
+                    "leftValue": "={{ $json.event_type }}",
+                    "rightValue": "every_message_reply_received",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.4,
+      "position": [
+        -1488,
+        336
+      ],
+      "id": "dbb12071-e54b-4754-9215-577c591a06e6",
+      "name": "Route by Event Type"
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "fieldsToMatchString": "linkedin_url",
+        "joinMode": "enrichInput1",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        -1712,
+        368
+      ],
+      "id": "734e676f-2f70-4723-99d1-9f4bf1aeaf48",
+      "name": "Merge"
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "tableId": "leads",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "id",
+              "condition": "eq",
+              "keyValue": "={{ $json.id }}"
+            }
+          ]
+        },
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "status",
+              "fieldValue": "connection_sent"
+            },
+            {
+              "fieldId": "updated_at",
+              "fieldValue": "={{ new Date().toISOString() }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        -1008,
+        -144
+      ],
+      "id": "a58e9864-a362-4aa2-9030-83bf394df847",
+      "name": "Update Status - connection_sent",
+      "credentials": {
+        "supabaseApi": {
+          "id": "qfbu43o1tlmbP0WQ",
+          "name": "Supabase account-Michael"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "tableId": "leads",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "id",
+              "condition": "eq",
+              "keyValue": "={{ $json.id }}"
+            }
+          ]
+        },
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "status",
+              "fieldValue": "connected"
+            },
+            {
+              "fieldId": "updated_at",
+              "fieldValue": "={{ new Date().toISOString() }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        -1008,
+        48
+      ],
+      "id": "32f7ccb2-4374-4281-b783-9e584b81354a",
+      "name": "Update Status - connected",
+      "credentials": {
+        "supabaseApi": {
+          "id": "qfbu43o1tlmbP0WQ",
+          "name": "Supabase account-Michael"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "tableId": "leads",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "id",
+              "condition": "eq",
+              "keyValue": "={{ $json.id }}"
+            }
+          ]
+        },
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "status",
+              "fieldValue": "={{ $json.status === 'message_1_sent' ? 'follow_up_sent' : 'message_1_sent' }}"
+            },
+            {
+              "fieldId": "updated_at",
+              "fieldValue": "={{ new Date().toISOString() }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        -1024,
+        240
+      ],
+      "id": "2245a942-6cc8-4c37-8237-40a60c2f4514",
+      "name": "Update Status - message_sent",
+      "credentials": {
+        "supabaseApi": {
+          "id": "qfbu43o1tlmbP0WQ",
+          "name": "Supabase account-Michael"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "tableId": "events",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "lead_id",
+              "fieldValue": "={{ $json.id }}"
+            },
+            {
+              "fieldId": "event_type",
+              "fieldValue": "={{ $('Code in JavaScript').item.json.event_type }}"
+            },
+            {
+              "fieldId": "event_data",
+              "fieldValue": "={{ $('Code in JavaScript').item.json.raw_payload }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        -560,
+        416
+      ],
+      "id": "08899897-47ea-44a9-b938-73c29d91a980",
+      "name": "Insert Event Log",
+      "credentials": {
+        "supabaseApi": {
+          "id": "qfbu43o1tlmbP0WQ",
+          "name": "Supabase account-Michael"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "5da4ba84-e7d9-4efb-b8c3-1310a906dea5",
+              "leftValue": "={{ $('Code in JavaScript').item.json.event_type }}",
+              "rightValue": "every_message_reply_received",
+              "operator": {
+                "type": "string",
+                "operation": "equals",
+                "name": "filter.operator.equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        -336,
+        416
+      ],
+      "id": "850396df-4d63-497a-bc6e-be05b26e8e4e",
+      "name": "If"
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "Sd5gGALOiAyxr9ni",
+          "mode": "list",
+          "cachedResultUrl": "/workflow/Sd5gGALOiAyxr9ni",
+          "cachedResultName": "WF-03 Reply Classifier"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "lead_id": "={{ Number($json.lead_id) }}",
+            "reply_text": "={{ $('Code in JavaScript').item.json.reply_text }}"
+          },
+          "matchingColumns": [
+            ""
+          ],
+          "schema": [
+            {
+              "id": "lead_id",
+              "displayName": "lead_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "number",
+              "removed": false
+            },
+            {
+              "id": "reply_text",
+              "displayName": "reply_text",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": true,
+          "convertFieldsToString": true
+        },
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      },
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.3,
+      "position": [
+        128,
+        400
+      ],
+      "id": "73db4966-76fa-4b37-a33b-cf00b78899d2",
+      "name": "Call WF-03 Reply Classifier"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "0312fe37-aaba-4baf-b591-b34de13bb4fb",
+              "name": "lead_id",
+              "value": "={{ $json.lead_id }}",
+              "type": "number"
+            },
+            {
+              "id": "bbbfc883-7c30-4569-8c04-a81e2129f473",
+              "name": "reply_text",
+              "value": "={{ $('Code in JavaScript').item.json.reply_text }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -96,
+        400
+      ],
+      "id": "dddca8a5-ecc7-4c60-9611-b7ab5f900f94",
+      "name": "Prepare WF-03 Input"
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript": {
+      "main": [
+        [
+          {
+            "node": "Lookup Lead",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Lookup Lead": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Route by Event Type": {
+      "main": [
+        [
+          {
+            "node": "Update Status - connection_sent",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Update Status - connected",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Update Status - message_sent",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Insert Event Log",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge": {
+      "main": [
+        [
+          {
+            "node": "Route by Event Type",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Status - connection_sent": {
+      "main": [
+        [
+          {
+            "node": "Insert Event Log",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Status - connected": {
+      "main": [
+        [
+          {
+            "node": "Insert Event Log",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Status - message_sent": {
+      "main": [
+        [
+          {
+            "node": "Insert Event Log",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Insert Event Log": {
+      "main": [
+        [
+          {
+            "node": "If",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If": {
+      "main": [
+        [
+          {
+            "node": "Prepare WF-03 Input",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare WF-03 Input": {
+      "main": [
+        [
+          {
+            "node": "Call WF-03 Reply Classifier",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {
+    "Webhook": [
+      {
+        "headers": {
+          "host": "n8n.srv1733922.hstgr.cloud",
+          "user-agent": "RestSharp/110.2.0.0",
+          "content-length": "1126",
+          "accept": "application/json, text/json, text/x-json, text/javascript, application/xml, text/xml",
+          "accept-encoding": "gzip, deflate, br",
+          "content-type": "application/json",
+          "traceparent": "00-f5985f42ba208bd673f8e2a9a243e39c-6cc4ea4762b1e9c7-01",
+          "x-forwarded-for": "63.180.119.255",
+          "x-forwarded-host": "n8n.srv1733922.hstgr.cloud",
+          "x-forwarded-port": "443",
+          "x-forwarded-proto": "https",
+          "x-forwarded-server": "31e3c18101ed",
+          "x-real-ip": "63.180.119.255"
+        },
+        "params": {},
+        "query": {},
+        "body": {
+          "connection_message": "Hallo Susanne, ich bin auf Ihr Profil gestossen und denke, mein kostenloser 30-Min-Workshop\nzum Thema Feedback in der Fuehrung koennte fuer Sie interessant sein. Freue mich auf die Vernetzung!",
+          "campaign": {
+            "name": "Workshop_June30_2026_DE",
+            "id": 465197,
+            "status": 2
+          },
+          "sender": {
+            "id": 209520,
+            "first_name": "Michael",
+            "last_name": "Ohlmer",
+            "full_name": "Michael Ohlmer",
+            "email_address": "michael@ohlmer-consulting.de",
+            "profile_url": "https://www.linkedin.com/in/michaelohlmer"
+          },
+          "lead": {
+            "id": "967359901",
+            "profile_url": "https://www.linkedin.com/in/susanne-heß-911b7222b",
+            "first_name": "Susanne ",
+            "last_name": "Heß",
+            "full_name": "Susanne  Heß",
+            "location": "Schorndorf",
+            "summary": "HR Profi mit langjähriger Erfahrung im Mittelstand ",
+            "company_url": null,
+            "company_name": null,
+            "position": null,
+            "about": null,
+            "email_address": "susanne.hess@cognitas.de",
+            "enriched_email": null,
+            "custom_email": "susanne.hess@cognitas.de",
+            "tags": [],
+            "lists": [
+              {
+                "name": "CSV Leads",
+                "id": 722965,
+                "custom_fields": {}
+              }
+            ]
+          },
+          "timestamp": "2026-06-14T15:54:17.7885378Z",
+          "event_type": "connection_request_sent",
+          "correlation_id": "97a94a2c-1cd2-4f0c-b0e4-c3abe4c450c6"
+        },
+        "webhookUrl": "https://n8n.srv1733922.hstgr.cloud/webhook/heyreach-event",
+        "executionMode": "production"
+      }
+    ]
+  },
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "067c595f821a5ce896589e18efac21979e15a4a5179c1c556e5ee284241d08e3"
+  }
+}

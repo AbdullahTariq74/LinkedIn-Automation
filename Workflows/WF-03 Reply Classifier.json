@@ -1,0 +1,493 @@
+{
+  "nodes": [
+    {
+      "parameters": {
+        "workflowInputs": {
+          "values": [
+            {
+              "name": "lead_id",
+              "type": "number"
+            },
+            {
+              "name": "reply_text"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -624,
+        288
+      ],
+      "id": "8c0798f4-f85c-49c4-b3d1-25feefdfeb81",
+      "name": "When Executed by Another Workflow"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.reply_text }}",
+        "hasOutputParser": true,
+        "options": {
+          "systemMessage": "You are a classification assistant for a German LinkedIn outreach campaign.\n\nContext: Michael Ohlmer, a leadership coach, invited German-speaking HR professionals to a free 30-minute workshop on leadership feedback (\"Feedback in der Führung\") on June 30, 2026.\n\nYour job is to classify the intent of the person's reply.\n\nClassification rules:\n- positive: The person is interested, wants to attend, asks for registration/booking details, or responds warmly and affirmatively\n- negative: The person declines, says no, wants to unsubscribe, is not interested, or clearly rejects the invitation (including polite \"no thank you\" or \"not right now\")\n- ambiguous: The intent is unclear — asking a neutral question without commitment, saying maybe/later, very short or unclear reply, or the message could mean either way\n\nImportant:\n- Classify by MEANING, not keywords\n- \"Thank you but not now\" = negative\n- \"When is it?\" or \"What is the topic?\" without commitment = ambiguous\n- \"OK\" or \"👍\" alone = ambiguous\n- Sarcasm = negative\n- Both German and English replies are valid — classify by meaning regardless of language\n\nAlways return your answer using the structured output tool."
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 1.7,
+      "position": [
+        -416,
+        288
+      ],
+      "id": "393c1702-2122-45c1-9896-a2bf2c03b6f0",
+      "name": "Classify Reply (AI Agent)"
+    },
+    {
+      "parameters": {
+        "schemaType": "manual",
+        "inputSchema": "{\"type\":\"object\",\"properties\":{\"classification\":{\"type\":\"string\",\"enum\":[\"positive\",\"negative\",\"ambiguous\"],\"description\":\"Classification of the reply intent\"},\"reasoning\":{\"type\":\"string\",\"description\":\"One sentence explaining why this classification was chosen\"}},\"required\":[\"classification\",\"reasoning\"]}"
+      },
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.2,
+      "position": [
+        -208,
+        512
+      ],
+      "id": "f03b7fe3-0b36-4b1c-af92-9691f368e3d8",
+      "name": "Classification Schema"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "f1a2b3c4-aaaa-bbbb-cccc-f1a2b3c4d5e6",
+              "name": "lead_id",
+              "value": "={{ $('When Executed by Another Workflow').first().json.lead_id }}",
+              "type": "number"
+            },
+            {
+              "id": "f1a2b3c4-bbbb-cccc-dddd-f1a2b3c4d5e6",
+              "name": "reply_text",
+              "value": "={{ $('When Executed by Another Workflow').first().json.reply_text }}",
+              "type": "string"
+            },
+            {
+              "id": "f1a2b3c4-cccc-dddd-eeee-f1a2b3c4d5e6",
+              "name": "classification",
+              "value": "={{ $json.output.classification ?? $json.classification }}",
+              "type": "string"
+            },
+            {
+              "id": "f1a2b3c4-dddd-eeee-ffff-f1a2b3c4d5e6",
+              "name": "reasoning",
+              "value": "={{ $json.output.reasoning ?? $json.reasoning }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -48,
+        288
+      ],
+      "id": "bda1d032-7830-4142-aef3-9f3bd372aea3",
+      "name": "Format Classification Result"
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.classification }}",
+                    "rightValue": "positive",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "e9227194-b70c-4cb7-90db-c218cb4f8335"
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "f8329e87-6ba7-46bf-8179-8736f7e80b93",
+                    "leftValue": "={{ $json.classification }}",
+                    "rightValue": "negative",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "26d050ea-6f96-4246-850b-46c59d3be372",
+                    "leftValue": "={{ $json.classification }}",
+                    "rightValue": "ambiguous",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.4,
+      "position": [
+        192,
+        272
+      ],
+      "id": "9055293b-ce4b-4674-a818-1d55d823c5cd",
+      "name": "Route by Classification"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "478c8b63-21ea-4cf0-8faa-0ad135c116f8",
+              "name": "lead_id",
+              "value": "={{ $json.lead_id }}",
+              "type": "string"
+            },
+            {
+              "id": "e5227bfd-3c40-45fe-9985-49b3d5da69d6",
+              "name": "reply_text",
+              "value": "={{ $json.reply_text }}",
+              "type": "string"
+            },
+            {
+              "id": "2bf72633-4137-4c1b-a539-271647ba3e47",
+              "name": "classification",
+              "value": "={{ $json.classification }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        400,
+        384
+      ],
+      "id": "1d8c18ef-5cd1-493a-ab24-a0c1e1e2d9c1",
+      "name": "Prepare WF-05 Input"
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "6WhmA4uiDZWaNUc9",
+          "cachedResultName": "WF-05 Email Notification Handler."
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "lead_id": "={{ Number($json.lead_id) }}",
+            "reply_text": "={{ String($json.reply_text) }}",
+            "classification": "={{ String($json.classification) }}"
+          },
+          "matchingColumns": [
+            "lead_id"
+          ],
+          "schema": [
+            {
+              "id": "lead_id",
+              "displayName": "lead_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "number",
+              "removed": false
+            },
+            {
+              "id": "reply_text",
+              "displayName": "reply_text",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "classification",
+              "displayName": "classification",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": true
+        },
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      },
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.3,
+      "position": [
+        624,
+        384
+      ],
+      "id": "825f1690-fb98-4987-b3ff-0328a29ddbb8",
+      "name": "Call WF-05 Notification Handler"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "1cefaea5-acd0-4de9-9173-ec94a4aa5b64",
+              "name": "lead_id",
+              "value": "={{ Number($('Format Classification Result').first().json.lead_id) }}",
+              "type": "number"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        400,
+        112
+      ],
+      "id": "86b14596-c00a-4371-85c7-803bb517b297",
+      "name": "Prepare WF-04 Input"
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "LKBcy6QwfLx2QryX",
+          "mode": "list",
+          "cachedResultUrl": "/workflow/LKBcy6QwfLx2QryX",
+          "cachedResultName": "WF-04 Positive Reply Handler"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "lead_id": "={{ Number($json.lead_id) }}"
+          },
+          "matchingColumns": [
+            "lead_id"
+          ],
+          "schema": [
+            {
+              "id": "lead_id",
+              "displayName": "lead_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "number",
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": true
+        },
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      },
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.3,
+      "position": [
+        624,
+        112
+      ],
+      "id": "6dba5486-7a95-4a8a-809e-ca2651632d16",
+      "name": "Call 'WF-04 Positive Reply Handler'"
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "mode": "list",
+          "value": "claude-sonnet-4-6",
+          "cachedResultName": "Claude Sonnet 4.6"
+        },
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatAnthropic",
+      "typeVersion": 1.5,
+      "position": [
+        -560,
+        496
+      ],
+      "id": "73869665-7758-4571-989f-327222a756fa",
+      "name": "Anthropic Chat Model",
+      "credentials": {
+        "anthropicApi": {
+          "id": "AYRsdcxpaxExe1h6",
+          "name": "Anthropic account-Michael"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "When Executed by Another Workflow": {
+      "main": [
+        [
+          {
+            "node": "Classify Reply (AI Agent)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Classify Reply (AI Agent)": {
+      "main": [
+        [
+          {
+            "node": "Format Classification Result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Classification Schema": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "Classify Reply (AI Agent)",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Classification Result": {
+      "main": [
+        [
+          {
+            "node": "Route by Classification",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Route by Classification": {
+      "main": [
+        [
+          {
+            "node": "Prepare WF-04 Input",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Prepare WF-05 Input",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Prepare WF-05 Input",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare WF-05 Input": {
+      "main": [
+        [
+          {
+            "node": "Call WF-05 Notification Handler",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare WF-04 Input": {
+      "main": [
+        [
+          {
+            "node": "Call 'WF-04 Positive Reply Handler'",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Anthropic Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Classify Reply (AI Agent)",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {
+    "When Executed by Another Workflow": [
+      {
+        "lead_id": 1,
+        "reply_text": "Was ist dad Thema des Workshops?"
+      }
+    ]
+  },
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "067c595f821a5ce896589e18efac21979e15a4a5179c1c556e5ee284241d08e3"
+  }
+}

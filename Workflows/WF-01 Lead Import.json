@@ -1,0 +1,661 @@
+{
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "b320d215-ce0c-4027-873a-3ac6c7c6fbb7",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        -8992,
+        1184
+      ],
+      "id": "e95e8d93-511a-477a-b933-e1870b08001a",
+      "name": "Webhook",
+      "webhookId": "b320d215-ce0c-4027-873a-3ac6c7c6fbb7"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1.1,
+      "position": [
+        -8736,
+        1184
+      ],
+      "id": "dbfd858d-504f-4fd4-8348-9a13bd1e5f75",
+      "name": "Extract from File"
+    },
+    {
+      "parameters": {
+        "jsCode": "const source = $('Webhook').first().json.body.source;\n\n// ---------- Helpers ----------\nfunction clean(str) {\n  return String(str || '')\n    .replace(/^\\uFEFF/, '') // Remove BOM\n    .trim()\n    .toLowerCase();\n}\n\nfunction findCol(headers, candidates) {\n  // Exact match\n  for (const c of candidates) {\n    const idx = headers.findIndex(h => clean(h) === clean(c));\n    if (idx !== -1) return idx;\n  }\n\n  // Partial match\n  for (const c of candidates) {\n    const idx = headers.findIndex(h => clean(h).includes(clean(c)));\n    if (idx !== -1) return idx;\n  }\n\n  return -1;\n}\n\nfunction normalize(url) {\n  const trimmed = String(url || '').trim();\n  if (!trimmed) return null;\n\n  let normalized = trimmed\n    .replace(/^http:\\/\\//i, 'https://')\n    .split('?')[0]\n    .replace(/\\/+$/, '');\n\n  if (!/^https?:\\/\\//i.test(normalized)) {\n    normalized = `https://${normalized}`;\n  }\n\n  return normalized.toLowerCase();\n}\n\n// ---------- Build headers from first 10 rows ----------\nconst sampleRows = $input.all().slice(0, 10);\n\nconst headers = [\n  ...new Set(\n    sampleRows.flatMap(item => Object.keys(item.json))\n  )\n];\n\n// ---------- Column detection ----------\nconst linkedinCandidates =\n  source === 'close_crm'\n    ? [\n        'linkedin url',\n        'linkedin_url',\n        'linkedin',\n        'linkedin profile',\n        'linkedin profile url',\n        'profile url',\n        'profileurl',\n        'profile_url'\n      ]\n    : [\n        'profile url',\n        'profileurl',\n        'profile_url',\n        'linkedin url',\n        'linkedin_url',\n        'linkedin',\n        'linkedin profile',\n        'linkedin profile url'\n      ];\n\nconst colIdx = {\n  firstName: findCol(headers, [\n    'first name',\n    'first_name',\n    'firstname',\n    'vorname'\n  ]),\n\n  lastName: findCol(headers, [\n    'last name',\n    'last_name',\n    'lastname',\n    'nachname',\n    'surname'\n  ]),\n\n  company: findCol(headers, [\n    'company',\n    'company name',\n    'company_name',\n    'organization',\n    'firma',\n    'unternehmen',\n    'current company'\n  ]),\n\n  linkedinUrl: findCol(headers, linkedinCandidates),\n\n  email: findCol(headers, [\n    'email',\n    'e-mail',\n    'email address',\n    'email_address',\n    'mail'\n  ]),\n};\n\n// ---------- Validation ----------\nif (colIdx.linkedinUrl === -1) {\n  throw new Error(\n    'Could not find LinkedIn URL column. Headers found: ' +\n      headers.join(', ')\n  );\n}\n\n// ---------- Process rows ----------\nlet skippedMissing = 0;\nconst output = [];\nconst allItems = $input.all();\n\nfor (let i = 0; i < allItems.length; i++) {\n  const row = allItems[i].json;\n\n  const rawUrl =\n    colIdx.linkedinUrl >= 0\n      ? String(row[headers[colIdx.linkedinUrl]] ?? '').trim()\n      : '';\n\n  if (!rawUrl) {\n    skippedMissing++;\n    continue;\n  }\n\n  const linkedin_url = normalize(rawUrl);\n\n  if (!linkedin_url || !linkedin_url.includes('linkedin.com')) {\n    skippedMissing++;\n    continue;\n  }\n\n  output.push({\n    json: {\n      first_name:\n        colIdx.firstName >= 0\n          ? row[headers[colIdx.firstName]] || null\n          : null,\n\n      last_name:\n        colIdx.lastName >= 0\n          ? row[headers[colIdx.lastName]] || null\n          : null,\n\n      company:\n        colIdx.company >= 0\n          ? row[headers[colIdx.company]] || null\n          : null,\n\n      email:\n        colIdx.email >= 0\n          ? row[headers[colIdx.email]] || null\n          : null,\n\n      linkedin_url,\n      source,\n    },\n    pairedItem: { item: i },\n  });\n}\n\nconsole.log(\n  `Processed ${output.length} rows. Skipped ${skippedMissing} rows with missing or invalid LinkedIn URLs.`\n);\n\nreturn output;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -8528,
+        1184
+      ],
+      "id": "d536d955-97cd-4885-8511-811552467466",
+      "name": "Code in JavaScript"
+    },
+    {
+      "parameters": {
+        "compare": "selectedFields",
+        "fieldsToCompare": "linkedin_url",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.removeDuplicates",
+      "typeVersion": 2,
+      "position": [
+        -8320,
+        1184
+      ],
+      "id": "785f2349-e22a-4230-ba05-126e815223b8",
+      "name": "Remove Duplicates"
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "tableId": "leads",
+        "limit": 1,
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "linkedin_url",
+              "condition": "eq",
+              "keyValue": "={{ $json.linkedin_url }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        -8096,
+        1280
+      ],
+      "id": "2a0de0dd-bca4-4279-82cc-3c95be515511",
+      "name": "Check Duplicate",
+      "alwaysOutputData": true,
+      "credentials": {
+        "supabaseApi": {
+          "id": "qfbu43o1tlmbP0WQ",
+          "name": "Supabase account-Michael"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "fieldsToMatchString": "linkedin_url",
+        "joinMode": "enrichInput1",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        -7872,
+        1056
+      ],
+      "id": "e7b1898b-0903-4d0b-9973-0b04aa00f7c5",
+      "name": "Merge"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "87a6a075-4a4a-4278-b274-91d1501318e1",
+              "leftValue": "={{ $json.id }}",
+              "rightValue": "",
+              "operator": {
+                "type": "number",
+                "operation": "empty",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        -7680,
+        1056
+      ],
+      "id": "0862d00a-d283-42b0-a412-6b4c15074355",
+      "name": "Is New Lead?"
+    },
+    {
+      "parameters": {
+        "tableId": "leads",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "first_name",
+              "fieldValue": "={{ $json.first_name }}"
+            },
+            {
+              "fieldId": "last_name",
+              "fieldValue": "={{ $json.last_name }}"
+            },
+            {
+              "fieldId": "company",
+              "fieldValue": "={{ $json.company }}"
+            },
+            {
+              "fieldId": "email",
+              "fieldValue": "={{ $json.email }}"
+            },
+            {
+              "fieldId": "linkedin_url",
+              "fieldValue": "={{ $json.linkedin_url }}"
+            },
+            {
+              "fieldId": "source",
+              "fieldValue": "={{ $json.source }}"
+            },
+            {
+              "fieldId": "status",
+              "fieldValue": "imported"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        -7456,
+        1008
+      ],
+      "id": "4d9e8464-7a20-4a9f-81a0-e710c1e8f7cc",
+      "name": "Create a row",
+      "credentials": {
+        "supabaseApi": {
+          "id": "qfbu43o1tlmbP0WQ",
+          "name": "Supabase account-Michael"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "addLeads",
+        "campaignId": 465197,
+        "accountLeadPairs": {
+          "pair": [
+            {
+              "linkedInAccountId": 209520,
+              "lead": {
+                "details": {
+                  "firstName": "={{ $json.first_name }}",
+                  "lastName": "={{ $json.last_name }}",
+                  "profileUrl": "={{ $json.linkedin_url }}",
+                  "companyName": "={{ $json.company }}",
+                  "emailAddress": "={{ $json.email }}"
+                }
+              }
+            }
+          ]
+        },
+        "requestOptions": {}
+      },
+      "type": "n8n-nodes-heyreach.heyReach",
+      "typeVersion": 1,
+      "position": [
+        -7008,
+        1008
+      ],
+      "id": "f38f9db3-461d-42bc-8247-928f59202cbd",
+      "name": "Add leads to campaign",
+      "credentials": {
+        "heyReachApi": {
+          "id": "NiUuyFvNJLksNwhJ",
+          "name": "HeyReach account-Michael"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "tableId": "leads",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "id",
+              "condition": "eq",
+              "keyValue": "={{ $('Create a row').item.json.id }}"
+            }
+          ]
+        },
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "status",
+              "fieldValue": "campaign_added"
+            },
+            {
+              "fieldId": "updated_at",
+              "fieldValue": "={{ new Date().toISOString() }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        -6080,
+        1008
+      ],
+      "id": "376229c2-6a15-4904-9f7b-2725b6f1c3bf",
+      "name": "Update Status - campaign_added",
+      "credentials": {
+        "supabaseApi": {
+          "id": "qfbu43o1tlmbP0WQ",
+          "name": "Supabase account-Michael"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        -7248,
+        1008
+      ],
+      "id": "015cf6eb-f63d-4139-ab0c-e133c0ceb128",
+      "name": "Loop Over Items"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        -5904,
+        1008
+      ],
+      "id": "9e93a60c-03bb-48aa-81b4-476097a4594f",
+      "name": "Wait",
+      "webhookId": "3ad18431-fa88-49da-a2c1-67dfbc555b0d"
+    },
+    {
+      "parameters": {
+        "operation": "getLeads",
+        "limit": 5,
+        "campaignId": 465197,
+        "additionalFields": {
+          "timeFrom": "={{ $('Loop Over Items').item.json.created_at }}",
+          "timeTo": "={{ $now }}"
+        },
+        "requestOptions": {}
+      },
+      "type": "n8n-nodes-heyreach.heyReach",
+      "typeVersion": 1,
+      "position": [
+        -6592,
+        1008
+      ],
+      "id": "51d8932f-4f80-40d6-a76d-2ae57e68d439",
+      "name": "Retrieve leads from campaign",
+      "credentials": {
+        "heyReachApi": {
+          "id": "NiUuyFvNJLksNwhJ",
+          "name": "HeyReach account-Michael"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        -6800,
+        1008
+      ],
+      "id": "4c82e5d4-ed46-43f5-aacf-4b86f1463723",
+      "name": "Wait1",
+      "webhookId": "8e57a1c9-68d9-45ef-a40b-ae5679b6c269"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "f05b391f-dd8d-4b35-a2cf-831f8890d80e",
+              "leftValue": "={{ $('Loop Over Items').item.json.linkedin_url }}",
+              "rightValue": "={{ $json.items[0].linkedInUserProfile.profileUrl }}",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        -6384,
+        1008
+      ],
+      "id": "4b7af661-4712-4972-8657-ddb0ceb94339",
+      "name": "If"
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "tableId": "leads",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "id",
+              "condition": "eq",
+              "keyValue": "={{ $('Create a row').item.json.id }}"
+            }
+          ]
+        },
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "status",
+              "fieldValue": "campaign_added"
+            },
+            {
+              "fieldId": "updated_at",
+              "fieldValue": "={{ new Date().toISOString() }}"
+            },
+            {
+              "fieldId": "heyreach_id",
+              "fieldValue": "={{ $json.items[0].id }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        -6080,
+        816
+      ],
+      "id": "ecdb164c-987f-417b-b2d9-b926c79c9211",
+      "name": "Update Status - campaign_added1",
+      "credentials": {
+        "supabaseApi": {
+          "id": "qfbu43o1tlmbP0WQ",
+          "name": "Supabase account-Michael"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        -5888,
+        800
+      ],
+      "id": "7cec601b-d31d-43a3-8d4b-053edb4d524f",
+      "name": "Wait2",
+      "webhookId": "3ad18431-fa88-49da-a2c1-67dfbc555b0d"
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Extract from File",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract from File": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript": {
+      "main": [
+        [
+          {
+            "node": "Remove Duplicates",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Remove Duplicates": {
+      "main": [
+        [
+          {
+            "node": "Check Duplicate",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Duplicate": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Merge": {
+      "main": [
+        [
+          {
+            "node": "Is New Lead?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is New Lead?": {
+      "main": [
+        [
+          {
+            "node": "Create a row",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create a row": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Add leads to campaign": {
+      "main": [
+        [
+          {
+            "node": "Wait1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Status - campaign_added": {
+      "main": [
+        [
+          {
+            "node": "Wait",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Over Items": {
+      "main": [
+        [],
+        [
+          {
+            "node": "Add leads to campaign",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Retrieve leads from campaign": {
+      "main": [
+        [
+          {
+            "node": "If",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait1": {
+      "main": [
+        [
+          {
+            "node": "Retrieve leads from campaign",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If": {
+      "main": [
+        [
+          {
+            "node": "Update Status - campaign_added1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Update Status - campaign_added",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Status - campaign_added1": {
+      "main": [
+        [
+          {
+            "node": "Wait2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait2": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {
+    "Webhook": [
+      {
+        "headers": {
+          "host": "n8n.srv1733922.hstgr.cloud",
+          "user-agent": "node",
+          "content-length": "1877",
+          "accept": "*/*",
+          "accept-encoding": "br, gzip, deflate",
+          "accept-language": "*",
+          "content-type": "multipart/form-data; boundary=----formdata-undici-045139740207",
+          "sec-fetch-mode": "cors",
+          "x-forwarded-for": "149.40.228.114",
+          "x-forwarded-host": "n8n.srv1733922.hstgr.cloud",
+          "x-forwarded-port": "443",
+          "x-forwarded-proto": "https",
+          "x-forwarded-server": "31e3c18101ed",
+          "x-real-ip": "149.40.228.114"
+        },
+        "params": {},
+        "query": {},
+        "body": {
+          "source": "close_crm"
+        },
+        "webhookUrl": "https://n8n.srv1733922.hstgr.cloud/webhook/b320d215-ce0c-4027-873a-3ac6c7c6fbb7",
+        "executionMode": "production"
+      }
+    ]
+  },
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "067c595f821a5ce896589e18efac21979e15a4a5179c1c556e5ee284241d08e3"
+  }
+}

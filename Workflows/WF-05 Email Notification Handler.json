@@ -1,0 +1,240 @@
+{
+  "nodes": [
+    {
+      "parameters": {
+        "workflowInputs": {
+          "values": [
+            {
+              "name": "lead_id",
+              "type": "number"
+            },
+            {
+              "name": "reply_text"
+            },
+            {
+              "name": "classification"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        256,
+        -144
+      ],
+      "id": "78b6d175-f34f-4b16-8189-9e96f956b6d6",
+      "name": "When Executed by Another Workflow"
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "tableId": "leads",
+        "limit": 1,
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "id",
+              "condition": "eq",
+              "keyValue": "={{ Number($('When Executed by Another Workflow').first().json.lead_id) }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        464,
+        -144
+      ],
+      "id": "7dc81da4-451c-4ba4-9083-fdfd4fa2d00c",
+      "name": "Get Lead Data",
+      "credentials": {
+        "supabaseApi": {
+          "id": "qfbu43o1tlmbP0WQ",
+          "name": "Supabase account-Michael"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const lead = $('Get Lead Data').first().json;\nconst trigger = $('When Executed by Another Workflow').first().json;\n\nconst firstName = lead.first_name || '';\nconst lastName = lead.last_name || '';\nconst company = lead.company || 'N/A';\nconst linkedinUrl = lead.linkedin_url || '';\nconst replyText = trigger.reply_text || '';\nconst classification = trigger.classification || '';\nconst leadId = trigger.lead_id;\n\nconst emailHtml = `\n<h3>New Campaign Reply</h3>\n<p><strong>Lead:</strong> ${firstName} ${lastName} at ${company}</p>\n<p><strong>Profile:</strong> <a href=\"${linkedinUrl}\">View on LinkedIn</a></p>\n<p><strong>Classification:</strong> ${classification}</p>\n<p><strong>Reply Text:</strong></p>\n<blockquote>${replyText}</blockquote>\n<p>Please log in to LinkedIn and respond to this lead directly.</p>\n`;\n\nreturn [{\n  json: {\n    emailHtml,\n    subject: `Campaign Reply: ${firstName} ${lastName}`,\n    lead_id: leadId,\n    classification\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        672,
+        -144
+      ],
+      "id": "41c19bc6-36ae-4614-be28-02dfb1c96125",
+      "name": "Build Email Body"
+    },
+    {
+      "parameters": {
+        "sendTo": "michael@ohlmer-consulting.de",
+        "subject": "={{ $json.subject }}",
+        "message": "={{ $json.emailHtml }}",
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        880,
+        -144
+      ],
+      "id": "3c234235-cc5f-4648-8c61-a59feb082271",
+      "name": "Send Email",
+      "webhookId": "e9df9e86-bc90-4c2d-af97-140fb31d2a6e",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "w67WpSAubxh7dY2w",
+          "name": "Gmail account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "tableId": "leads",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "id",
+              "condition": "eq",
+              "keyValue": "={{ Number($('When Executed by Another Workflow').first().json.lead_id) }}"
+            }
+          ]
+        },
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "status",
+              "fieldValue": "={{ $('When Executed by Another Workflow').first().json.classification === 'negative' ? 'replied_negative' : 'replied_ambiguous' }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        1088,
+        -144
+      ],
+      "id": "7d5c4d2f-9d4a-4f1c-868b-92f4fd350abc",
+      "name": "Update Lead Status",
+      "credentials": {
+        "supabaseApi": {
+          "id": "qfbu43o1tlmbP0WQ",
+          "name": "Supabase account-Michael"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "tableId": "events",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "lead_id",
+              "fieldValue": "={{ Number($('When Executed by Another Workflow').first().json.lead_id) }}"
+            },
+            {
+              "fieldId": "event_type",
+              "fieldValue": "={{ $('When Executed by Another Workflow').first().json.classification === 'negative' ? 'replied_negative' : 'replied_ambiguous' }}"
+            },
+            {
+              "fieldId": "event_data",
+              "fieldValue": "={{ JSON.stringify({ reply_text: $('When Executed by Another Workflow').first().json.reply_text, classification: $('When Executed by Another Workflow').first().json.classification }) }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        1296,
+        -144
+      ],
+      "id": "4acd7892-e18a-45c9-9f21-87bf3f34ae16",
+      "name": "Log Event",
+      "credentials": {
+        "supabaseApi": {
+          "id": "qfbu43o1tlmbP0WQ",
+          "name": "Supabase account-Michael"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "When Executed by Another Workflow": {
+      "main": [
+        [
+          {
+            "node": "Get Lead Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Lead Data": {
+      "main": [
+        [
+          {
+            "node": "Build Email Body",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Email Body": {
+      "main": [
+        [
+          {
+            "node": "Send Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Email": {
+      "main": [
+        [
+          {
+            "node": "Update Lead Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Lead Status": {
+      "main": [
+        [
+          {
+            "node": "Log Event",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {
+    "When Executed by Another Workflow": [
+      {
+        "lead_id": 46,
+        "reply_text": "Guten Morgen Herr Ohlmer,\n\nbesten Dank für Ihre Nachricht. Sie haben Recht, zu diesem Thema besteht Interesse. Wann soll der Workshop stattfinden?\n\nBesten dank vorab.",
+        "classification": "ambiguous"
+      }
+    ]
+  },
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "067c595f821a5ce896589e18efac21979e15a4a5179c1c556e5ee284241d08e3"
+  }
+}

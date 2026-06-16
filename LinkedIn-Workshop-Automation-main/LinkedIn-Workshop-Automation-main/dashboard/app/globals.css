@@ -1,0 +1,73 @@
+@import "tailwindcss";
+
+/* ── Dark theme (default) ───────────────────────── */
+:root {
+  color-scheme: dark;
+  --brand-cyan:    #2BCEF7;
+  --brand-orange:  #FF892D;
+  --brand-salmon:  #FA947A;
+
+  --bg:            #070C14;
+  --bg-card:       rgba(255,255,255,0.025);
+  --bg-nav:        rgba(11,17,32,0.92);
+  --bg-input:      rgba(255,255,255,0.04);
+  --border:        rgba(255,255,255,0.07);
+  --border-nav:    rgba(255,255,255,0.06);
+  --border-row:    rgba(255,255,255,0.04);
+  --border-section:rgba(255,255,255,0.06);
+  --text:          rgba(255,255,255,0.87);
+  --text-muted:    rgba(255,255,255,0.4);
+  --text-subtle:   rgba(255,255,255,0.25);
+  --text-dim:      rgba(255,255,255,0.2);
+  --hover-row:     rgba(43,206,247,0.03);
+  --grid-color:    rgba(43,206,247,0.025);
+}
+
+/* ── Light theme ────────────────────────────────── */
+[data-theme="light"] {
+  color-scheme: light;
+  --bg:            #F5F5F5;
+  --bg-card:       #FFFFFF;
+  --bg-nav:        rgba(255,255,255,0.95);
+  --bg-input:      #FFFFFF;
+  --border:        #E4EBF5;
+  --border-nav:    #E4EBF5;
+  --border-row:    #F0F4FF;
+  --border-section:#E4EBF5;
+  --text:          #232323;
+  --text-muted:    #54595F;
+  --text-subtle:   #7A7A7A;
+  --text-dim:      #ADADAD;
+  --hover-row:     rgba(43,206,247,0.04);
+  --grid-color:    rgba(43,206,247,0.05);
+}
+
+body {
+  font-family: var(--font-inter), 'Inter', sans-serif;
+  background: var(--bg);
+  color: var(--text);
+}
+
+select, input {
+  color-scheme: dark;
+}
+
+[data-theme="light"] select,
+[data-theme="light"] input {
+  color-scheme: light;
+}
+
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background-image:
+    linear-gradient(var(--grid-color) 1px, transparent 1px),
+    linear-gradient(90deg, var(--grid-color) 1px, transparent 1px);
+  background-size: 48px 48px;
+  pointer-events: none;
+  z-index: 0;
+}
+
+main { position: relative; z-index: 1; }
+nav  { position: relative; z-index: 10; }

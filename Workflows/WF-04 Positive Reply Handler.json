@@ -1,0 +1,247 @@
+{
+  "nodes": [
+    {
+      "parameters": {
+        "workflowInputs": {
+          "values": [
+            {
+              "name": "lead_id",
+              "type": "number"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        272,
+        384
+      ],
+      "id": "bc92cb6a-ca00-4581-9bc6-a5e789d78249",
+      "name": "When Executed by Another Workflow"
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "tableId": "leads",
+        "limit": 1,
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "id",
+              "condition": "eq",
+              "keyValue": "={{ $json.lead_id }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        480,
+        384
+      ],
+      "id": "c9b7f0f7-0143-4356-bea3-a901a35198c5",
+      "name": "Get many rows",
+      "credentials": {
+        "supabaseApi": {
+          "id": "qfbu43o1tlmbP0WQ",
+          "name": "Supabase account-Michael"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "tableId": "leads",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "id",
+              "condition": "eq",
+              "keyValue": "={{ Number($('When Executed by Another Workflow').first().json.lead_id) }}"
+            }
+          ]
+        },
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "status",
+              "fieldValue": "link_sent"
+            },
+            {
+              "fieldId": "updated_at",
+              "fieldValue": "={{ new Date().toISOString() }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        1152,
+        384
+      ],
+      "id": "2f21e3ca-2374-4b7c-8a2c-d8e49d57765e",
+      "name": "Update Status - link_sent",
+      "credentials": {
+        "supabaseApi": {
+          "id": "qfbu43o1tlmbP0WQ",
+          "name": "Supabase account-Michael"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "inbox",
+        "operation": "sendMessage",
+        "message": "=Hallo {{ $json.items[0].correspondentProfile.firstName }},  freut mich sehr! Hier ist der Link zur Anmeldung:  https://michaelohlmer.de/workshop-feedback.html  Ich freue mich auf Ihre Teilnahme!  Herzliche Gruesse, Michael",
+        "subject": "=",
+        "conversationId": "={{ $json.items[0].id }}",
+        "linkedInAccountId": 209520,
+        "requestOptions": {}
+      },
+      "type": "n8n-nodes-heyreach.heyReach",
+      "typeVersion": 1,
+      "position": [
+        928,
+        384
+      ],
+      "id": "b5354784-5d07-4662-940d-374e79b703c9",
+      "name": "Send a message to a LinkedIn conversation1",
+      "credentials": {
+        "heyReachApi": {
+          "id": "NiUuyFvNJLksNwhJ",
+          "name": "HeyReach account-Michael"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "tableId": "events",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "lead_id",
+              "fieldValue": "={{ $json.id }}"
+            },
+            {
+              "fieldId": "event_type",
+              "fieldValue": "={{ $json.status }}"
+            },
+            {
+              "fieldId": "event_data",
+              "fieldValue": "Workshop link sent"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        1344,
+        384
+      ],
+      "id": "cf6bb000-fac7-4885-9ef4-fddac3e83365",
+      "name": "Log Event",
+      "credentials": {
+        "supabaseApi": {
+          "id": "qfbu43o1tlmbP0WQ",
+          "name": "Supabase account-Michael"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "inbox",
+        "limit": 1,
+        "additionalFields": {
+          "leadProfileUrl": "={{ $json.linkedin_url }}"
+        },
+        "requestOptions": {}
+      },
+      "type": "n8n-nodes-heyreach.heyReach",
+      "typeVersion": 1,
+      "position": [
+        688,
+        384
+      ],
+      "id": "4d2fe47a-882e-4451-8df1-e6cd5c3264c8",
+      "name": "Retrieve all LinkedIn conversations",
+      "credentials": {
+        "heyReachApi": {
+          "id": "NiUuyFvNJLksNwhJ",
+          "name": "HeyReach account-Michael"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "When Executed by Another Workflow": {
+      "main": [
+        [
+          {
+            "node": "Get many rows",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get many rows": {
+      "main": [
+        [
+          {
+            "node": "Retrieve all LinkedIn conversations",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Status - link_sent": {
+      "main": [
+        [
+          {
+            "node": "Log Event",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send a message to a LinkedIn conversation1": {
+      "main": [
+        [
+          {
+            "node": "Update Status - link_sent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Retrieve all LinkedIn conversations": {
+      "main": [
+        [
+          {
+            "node": "Send a message to a LinkedIn conversation1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {
+    "When Executed by Another Workflow": [
+      {
+        "lead_id": 1
+      }
+    ]
+  },
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "067c595f821a5ce896589e18efac21979e15a4a5179c1c556e5ee284241d08e3"
+  }
+}

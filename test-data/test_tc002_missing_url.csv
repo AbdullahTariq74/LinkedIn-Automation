@@ -1,0 +1,6 @@
+First Name,Last Name,Company,Profile URL
+Valid,Lead,Company A,https://www.linkedin.com/in/valid-lead-one/
+Missing,Url,Company B,
+Another,Valid,Company C,https://www.linkedin.com/in/valid-lead-two/
+No,Profile,Company D,
+Third,Valid,Company E,https://www.linkedin.com/in/valid-lead-three/
