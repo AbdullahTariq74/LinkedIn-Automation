@@ -50,7 +50,7 @@ function previewCSV(text: string, source: Source): { valid: number; skipped: num
   const headers = parseLine(lines[0]);
 
   const linkedinCandidates = source === 'close_crm'
-    ? ['linkedin', 'linkedin url', 'linkedin_url', 'linkedin profile', 'linkedin profile url']
+    ? ['linkedin', 'linkedin url', 'linkedin_url', 'linkedin profile', 'linkedin profile url', 'profile url', 'profileurl', 'profile_url']
     : ['profile url', 'profileurl', 'profile_url', 'linkedin url', 'linkedin_url', 'linkedin'];
 
   const urlCol = findCol(headers, linkedinCandidates);
