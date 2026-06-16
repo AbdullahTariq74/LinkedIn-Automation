@@ -70,7 +70,7 @@ function previewCSV(text: string, source: Source): { valid: number; skipped: num
 export default function ImportPage() {
   const [file, setFile]         = useState<File | null>(null);
   const [source, setSource]     = useState<Source>('close_crm');
-  const [preview, setPreview]   = useState<{ valid: number; skipped: number } | null>(null);
+  const [preview, setPreview]   = useState<{ valid: number; skipped: number; urlColFound: boolean } | null>(null);
   const [status, setStatus]     = useState<Status>('idle');
   const [errorMsg, setErrorMsg] = useState('');
   const [dragging, setDragging] = useState(false);
