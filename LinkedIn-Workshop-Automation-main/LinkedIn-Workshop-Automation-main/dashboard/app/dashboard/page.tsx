@@ -1,3 +1,5 @@
+export const dynamic = 'force-dynamic';
+
 import { getSupabase } from '@/lib/supabase';
 import Link from 'next/link';
 
@@ -110,13 +112,6 @@ export default async function DashboardPage() {
       accent: 'text-[#FA947A]',
       glow: 'shadow-[0_0_20px_rgba(250,148,122,0.08)]',
     },
-    {
-      label: 'Landing Page Links Sent',
-      value: s.link_sent,
-      sub: 'workshop URL delivered to lead',
-      accent: 'text-[#FF892D]',
-      glow: 'shadow-[0_0_20px_rgba(255,137,45,0.12)]',
-    },
   ];
 
   const breakdown = [
@@ -127,7 +122,6 @@ export default async function DashboardPage() {
     { label: 'Message 1 Sent',    value: s.message_1_sent,    color: 'bg-violet-500' },
     { label: 'Follow-up Sent',    value: s.follow_up_sent,    color: 'bg-violet-400' },
     { label: 'Replied Positive',  value: s.replied_positive,  color: 'bg-[#FA947A]' },
-    { label: 'Link Sent',         value: s.link_sent,         color: 'bg-[#FF892D]' },
     { label: 'Replied Negative',  value: s.replied_negative,  color: 'bg-red-500' },
     { label: 'Replied Ambiguous', value: s.replied_ambiguous, color: 'bg-yellow-500' },
   ];
