@@ -1,0 +1,386 @@
+{
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "heyreach-event-v2",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [-2200, 300],
+      "id": "a1b2c3d4-e5f6-7890-aaaa-111111111111",
+      "name": "Webhook",
+      "webhookId": "f1e2d3c4-b5a6-9870-bbbb-222222222222"
+    },
+    {
+      "parameters": {
+        "jsCode": "// ── Event type mapping ───────────────────────────────────────────────────────\nconst EVENT_MAP = {\n  connection_request_sent: 'connection_sent',\n  connection_accepted:     'connection_request_accepted',\n  message_sent:            'message_sent',\n  reply_received:          'every_message_reply_received',\n};\n\nconst body = $json.body ?? $json ?? {};\nconst lead = body.lead ?? body.contact ?? body.prospect ?? {};\n\n// Event type\nconst rawEvent = body.event_type ?? body.event ?? body.type ?? body.action ?? null;\nconst event_type = EVENT_MAP[rawEvent] ?? rawEvent ?? null;\n\n// HeyReach lead ID\nconst heyreach_lead_id =\n  body.leadId    ??\n  body.lead_id   ??\n  body.contactId ??\n  lead.id        ??\n  lead.leadId    ??\n  null;\n\n// LinkedIn URL — normalize\nconst raw_url =\n  body.linkedinUrl  ??\n  body.linkedin_url ??\n  body.profileUrl   ??\n  body.profile_url  ??\n  lead.linkedinUrl  ??\n  lead.linkedin_url ??\n  lead.profileUrl   ??\n  null;\n\nconst linkedin_url = raw_url\n  ? raw_url.trim().toLowerCase().replace(/^http:/, 'https:').replace(/\\/+$/, '').replace(/\\?.*/, '')\n  : null;\n\n// Name\nconst first_name = body.firstName ?? body.first_name ?? lead.firstName ?? lead.first_name ?? null;\nconst last_name  = body.lastName  ?? body.last_name  ?? lead.lastName  ?? lead.last_name  ?? null;\n\n// Reply text (only for reply events)\nconst raw_reply =\n  body.replyText   ??\n  body.reply_text  ??\n  body.messageText ??\n  body.message     ??\n  body.body        ??\n  lead.replyText   ??\n  (body.recent_messages ?? [])[0]?.message ??\n  null;\n\nconst reply_text = event_type === 'every_message_reply_received' ? (raw_reply ?? null) : null;\n\nreturn [{ json: {\n  event_type,\n  heyreach_lead_id: heyreach_lead_id !== null ? String(heyreach_lead_id) : null,\n  linkedin_url,\n  first_name,\n  last_name,\n  reply_text,\n  raw_payload: JSON.stringify(body),\n} }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-1980, 300],
+      "id": "b2c3d4e5-f6a7-8901-cccc-333333333333",
+      "name": "Parse Event"
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "tableId": "leads",
+        "limit": 1,
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "linkedin_url",
+              "condition": "eq",
+              "keyValue": "={{ $json.linkedin_url }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [-1760, 440],
+      "id": "c3d4e5f6-a7b8-9012-dddd-444444444444",
+      "name": "Lookup Lead",
+      "alwaysOutputData": true,
+      "credentials": {
+        "supabaseApi": {
+          "id": "qfbu43o1tlmbP0WQ",
+          "name": "Supabase account-Michael"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "fieldsToMatchString": "linkedin_url",
+        "joinMode": "enrichInput1",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [-1540, 300],
+      "id": "d4e5f6a7-b8c9-0123-eeee-555555555555",
+      "name": "Merge"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "lead-exists-check",
+              "leftValue": "={{ $json.id ? 'yes' : 'no' }}",
+              "rightValue": "yes",
+              "operator": {
+                "type": "string",
+                "operation": "equals",
+                "name": "filter.operator.equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [-1320, 300],
+      "id": "e5f6a7b8-c9d0-1234-ffff-666666666666",
+      "name": "Lead Exists?"
+    },
+    {
+      "parameters": {
+        "tableId": "leads",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "first_name",
+              "fieldValue": "={{ $json.first_name ?? '' }}"
+            },
+            {
+              "fieldId": "last_name",
+              "fieldValue": "={{ $json.last_name ?? '' }}"
+            },
+            {
+              "fieldId": "linkedin_url",
+              "fieldValue": "={{ $json.linkedin_url }}"
+            },
+            {
+              "fieldId": "heyreach_id",
+              "fieldValue": "={{ $json.heyreach_lead_id }}"
+            },
+            {
+              "fieldId": "source",
+              "fieldValue": "sales_navigator"
+            },
+            {
+              "fieldId": "status",
+              "fieldValue": "campaign_added"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [-1100, 500],
+      "id": "f6a7b8c9-d0e1-2345-aaaa-777777777777",
+      "name": "Create Lead",
+      "credentials": {
+        "supabaseApi": {
+          "id": "qfbu43o1tlmbP0WQ",
+          "name": "Supabase account-Michael"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict", "version": 3 },
+                "conditions": [
+                  {
+                    "id": "route-connection-sent",
+                    "leftValue": "={{ $('Parse Event').item.json.event_type }}",
+                    "rightValue": "connection_sent",
+                    "operator": { "type": "string", "operation": "equals" }
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict", "version": 3 },
+                "conditions": [
+                  {
+                    "id": "route-connection-accepted",
+                    "leftValue": "={{ $('Parse Event').item.json.event_type }}",
+                    "rightValue": "connection_request_accepted",
+                    "operator": { "type": "string", "operation": "equals" }
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict", "version": 3 },
+                "conditions": [
+                  {
+                    "id": "route-message-sent",
+                    "leftValue": "={{ $('Parse Event').item.json.event_type }}",
+                    "rightValue": "message_sent",
+                    "operator": { "type": "string", "operation": "equals" }
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict", "version": 3 },
+                "conditions": [
+                  {
+                    "id": "route-reply",
+                    "leftValue": "={{ $('Parse Event').item.json.event_type }}",
+                    "rightValue": "every_message_reply_received",
+                    "operator": { "type": "string", "operation": "equals" }
+                  }
+                ],
+                "combinator": "and"
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.4,
+      "position": [-880, 300],
+      "id": "a7b8c9d0-e1f2-3456-bbbb-888888888888",
+      "name": "Route by Event"
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "tableId": "leads",
+        "filters": {
+          "conditions": [
+            { "keyName": "id", "condition": "eq", "keyValue": "={{ $json.id }}" }
+          ]
+        },
+        "fieldsUi": {
+          "fieldValues": [
+            { "fieldId": "status",     "fieldValue": "connection_sent" },
+            { "fieldId": "updated_at", "fieldValue": "={{ new Date().toISOString() }}" }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [-640, 60],
+      "id": "b8c9d0e1-f2a3-4567-cccc-999999999999",
+      "name": "Update Status - connection_sent",
+      "credentials": {
+        "supabaseApi": { "id": "qfbu43o1tlmbP0WQ", "name": "Supabase account-Michael" }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "tableId": "leads",
+        "filters": {
+          "conditions": [
+            { "keyName": "id", "condition": "eq", "keyValue": "={{ $json.id }}" }
+          ]
+        },
+        "fieldsUi": {
+          "fieldValues": [
+            { "fieldId": "status",     "fieldValue": "connected" },
+            { "fieldId": "updated_at", "fieldValue": "={{ new Date().toISOString() }}" }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [-640, 220],
+      "id": "c9d0e1f2-a3b4-5678-dddd-aaaaaaaaaaaa",
+      "name": "Update Status - connected",
+      "credentials": {
+        "supabaseApi": { "id": "qfbu43o1tlmbP0WQ", "name": "Supabase account-Michael" }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "tableId": "leads",
+        "filters": {
+          "conditions": [
+            { "keyName": "id", "condition": "eq", "keyValue": "={{ $json.id }}" }
+          ]
+        },
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "status",
+              "fieldValue": "={{ $json.status === 'message_1_sent' ? 'follow_up_sent' : 'message_1_sent' }}"
+            },
+            { "fieldId": "updated_at", "fieldValue": "={{ new Date().toISOString() }}" }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [-640, 380],
+      "id": "d0e1f2a3-b4c5-6789-eeee-bbbbbbbbbbbb",
+      "name": "Update Status - message_sent",
+      "credentials": {
+        "supabaseApi": { "id": "qfbu43o1tlmbP0WQ", "name": "Supabase account-Michael" }
+      }
+    },
+    {
+      "parameters": {
+        "fromEmail": "noreply@ohlmer-consulting.de",
+        "toEmail": "michael@ohlmer-consulting.de",
+        "subject": "=LinkedIn Reply: {{ $('Parse Event').item.json.first_name ?? '' }} {{ $('Parse Event').item.json.last_name ?? '' }}",
+        "emailFormat": "text",
+        "message": "=You received a LinkedIn reply.\n\nName: {{ $('Parse Event').item.json.first_name ?? '' }} {{ $('Parse Event').item.json.last_name ?? '' }}\nLinkedIn: {{ $('Parse Event').item.json.linkedin_url }}\n\nMessage:\n{{ $('Parse Event').item.json.reply_text }}\n\n---\nReply directly on LinkedIn to continue the conversation."
+      },
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [-640, 540],
+      "id": "e1f2a3b4-c5d6-7890-ffff-cccccccccccc",
+      "name": "Forward Reply to Michael",
+      "credentials": {
+        "smtp": {
+          "id": "REPLACE_WITH_SMTP_CREDENTIAL_ID",
+          "name": "SMTP account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "tableId": "events",
+        "fieldsUi": {
+          "fieldValues": [
+            { "fieldId": "lead_id",    "fieldValue": "={{ $json.id }}" },
+            { "fieldId": "event_type", "fieldValue": "={{ $('Parse Event').item.json.event_type }}" },
+            { "fieldId": "event_data", "fieldValue": "={{ $('Parse Event').item.json.raw_payload }}" }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [-400, 220],
+      "id": "f2a3b4c5-d6e7-8901-aaaa-dddddddddddd",
+      "name": "Log Event",
+      "credentials": {
+        "supabaseApi": { "id": "qfbu43o1tlmbP0WQ", "name": "Supabase account-Michael" }
+      }
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [[
+        { "node": "Parse Event", "type": "main", "index": 0 }
+      ]]
+    },
+    "Parse Event": {
+      "main": [[
+        { "node": "Lookup Lead", "type": "main", "index": 0 },
+        { "node": "Merge",       "type": "main", "index": 0 }
+      ]]
+    },
+    "Lookup Lead": {
+      "main": [[
+        { "node": "Merge", "type": "main", "index": 1 }
+      ]]
+    },
+    "Merge": {
+      "main": [[
+        { "node": "Lead Exists?", "type": "main", "index": 0 }
+      ]]
+    },
+    "Lead Exists?": {
+      "main": [
+        [{ "node": "Route by Event", "type": "main", "index": 0 }],
+        [{ "node": "Create Lead",    "type": "main", "index": 0 }]
+      ]
+    },
+    "Create Lead": {
+      "main": [[
+        { "node": "Route by Event", "type": "main", "index": 0 }
+      ]]
+    },
+    "Route by Event": {
+      "main": [
+        [{ "node": "Update Status - connection_sent", "type": "main", "index": 0 }],
+        [{ "node": "Update Status - connected",       "type": "main", "index": 0 }],
+        [{ "node": "Update Status - message_sent",    "type": "main", "index": 0 }],
+        [{ "node": "Forward Reply to Michael",        "type": "main", "index": 0 }]
+      ]
+    },
+    "Update Status - connection_sent": {
+      "main": [[{ "node": "Log Event", "type": "main", "index": 0 }]]
+    },
+    "Update Status - connected": {
+      "main": [[{ "node": "Log Event", "type": "main", "index": 0 }]]
+    },
+    "Update Status - message_sent": {
+      "main": [[{ "node": "Log Event", "type": "main", "index": 0 }]]
+    }
+  },
+  "pinData": {},
+  "meta": {
+    "instanceId": "067c595f821a5ce896589e18efac21979e15a4a5179c1c556e5ee284241d08e3"
+  }
+}
