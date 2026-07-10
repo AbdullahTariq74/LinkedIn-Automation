@@ -135,7 +135,7 @@ export default async function DashboardPage() {
             Live Campaign
           </p>
           <h1 className="text-2xl font-bold tracking-tight" style={{ color: 'var(--text)' }}>Campaign Overview</h1>
-          <p className="text-sm mt-1" style={{ color: 'var(--text-subtle)' }}>Workshop_June30_2026_DE · Michael Ohlmer · June 30, 2026</p>
+          <p className="text-sm mt-1" style={{ color: 'var(--text-subtle)' }}>Michael Ohlmer · LinkedIn Outreach</p>
         </div>
         <Link
           href="/leads"
