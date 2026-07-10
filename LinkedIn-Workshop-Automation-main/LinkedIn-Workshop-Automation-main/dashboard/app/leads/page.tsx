@@ -29,6 +29,12 @@ const STATUSES = [
   'replied_negative', 'replied_ambiguous', 'link_sent',
 ];
 
+const STATUS_OPTIONS = [
+  { value: '', label: 'All statuses' },
+  { value: 'connected_plus', label: 'Connected + (all accepted)' },
+  ...STATUSES.map(s => ({ value: s, label: s.replace(/_/g, ' ') })),
+];
+
 function timeAgo(dateStr: string): string {
   const seconds = Math.floor((Date.now() - new Date(dateStr).getTime()) / 1000);
   if (seconds < 60) return 'just now';
@@ -123,15 +129,12 @@ export default function LeadsPage() {
           style={inputStyle}
           className="w-56 focus:border-[#2BCEF7]"
         />
-        <div className="w-44">
+        <div className="w-52">
           <CustomSelect
             value={status}
             onChange={setStatus}
             placeholder="All statuses"
-            options={[
-              { value: '', label: 'All statuses' },
-              ...STATUSES.map(s => ({ value: s, label: s.replace(/_/g, ' ') })),
-            ]}
+            options={STATUS_OPTIONS}
           />
         </div>
         <div className="w-36">
@@ -155,6 +158,14 @@ export default function LeadsPage() {
             Clear filters
           </button>
         )}
+        <a
+          href={`/api/leads?export=true${status ? `&status=${status}` : ''}${source ? `&source=${source}` : ''}`}
+          download="leads-export.csv"
+          className="px-3 py-2 text-sm font-medium rounded-lg border transition-colors"
+          style={{ color: '#2BCEF7', borderColor: 'rgba(43,206,247,0.25)', background: 'rgba(43,206,247,0.05)', textDecoration: 'none' }}
+        >
+          Export CSV
+        </a>
       </div>
 
       {/* Table */}
